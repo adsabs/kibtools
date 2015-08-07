@@ -1,9 +1,12 @@
-
+# encoding: utf-8
+"""
+Relevant unit tests for the dashboard script
+"""
 import os
 import sys
 
 PROJECT_HOME = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), '../../'))
+    os.path.join(os.path.dirname(__file__), '../'))
 sys.path.append(PROJECT_HOME)
 
 import re
@@ -125,11 +128,10 @@ class MockElasticsearchStream(object):
         HTTPretty.reset()
         HTTPretty.disable()
 
-def helper_make_all(cluster, output_path):
+def helper_make_all(output_path):
     """
     This makes the relevant stub files needed for the gzip, except this does
     not require any web interaction
-    :param cluster: cluster details
     :param output_path: output path
     """
     os.mkdir('/tmp/test_out/')
@@ -188,7 +190,9 @@ def helper_extract_all(cluster, output_path):
                 )
 
 class TestDashboard(unittest.TestCase):
-
+    """
+    Central unit test class
+    """
     cluster = dict(
         ip_address='elasticsearch',
         port='80',

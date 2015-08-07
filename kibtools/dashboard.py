@@ -2,7 +2,25 @@
 # encoding: utf-8
 
 """
+Kibana Dashboard Extractor/Loader
+
+A small tool to extract dashboards, visualizations, and searches from kibana,
+that are stored in the elasticsearch index. It is based on the Ruby scripts
+created by @jim-davis:
+
 Modified from https://github.com/jim-davis/kibana-helper-scripts
+
+Modifications have been made such that the dashboard can be compressed to gzips
+and sent to AWS S3 storage. The same can be done in reverse - the gzip can be
+pulled from AWS S3 storage and unpacked to be loaded into the elasticsearch
+index.
+
+Note: it is assumed you are using a VPC for the AWS, and as such, no keys are
+being passed when communicating with AWS S3. Instead, you must create the
+relevant IAM for the instance that you run this script on. For more details see
+the extensive Amazon S3 documentation:
+
+http://docs.aws.amazon.com/AmazonS3/latest/dev/using-iam-policies.html
 """
 
 import os
@@ -12,6 +30,7 @@ import config
 import tarfile
 import logging
 import logging.config
+import argparse
 import requests
 
 logging.config.dictConfig(config.LOGGING)
@@ -52,7 +71,7 @@ def get_dashboards(cluster):
 
 def get_visualizations(cluster):
     """
-    GET all the saves visualizations
+    GET all the saved visualizations
 
     :param cluster: cluster details
     :return: list of dictionaries
@@ -271,5 +290,113 @@ def pull_from_s3(output_directory, s3_details):
 
 if __name__ == '__main__':
 
-    # For each dashboard get the relevant dashboard
-    print 'TBD'
+    # Load the users preferences
+    parser = argparse.ArgumentParser(description='Save kibana dashboard.')
+
+    parser.add_argument(
+        '-d',
+        '--directory',
+        dest='directory',
+        required=True,
+        help='directory to save/load the dashboard',
+        type=str
+    )
+    parser.add_argument(
+        '-a',
+        '--action',
+        dest='action',
+        choices=['save', 'load'],
+        required=True,
+        help='save/load dashboard to/from file',
+        type=str
+    )
+    parser.add_argument(
+        '-s',
+        '--s3',
+        dest='s3',
+        action='store_true',
+        help='save/load the dashboard to/from AWS S3'
+    )
+    parser.add_argument(
+        '--cluster-ip',
+        dest='cluster_ip',
+        default='elasticsearch',
+        help='IP or DNS name of cluster',
+        type=str
+    )
+    parser.add_argument(
+        '--cluster-port',
+        dest='cluster_port',
+        default='9200',
+        help='elasticsearch cluster port',
+        type=str
+    )
+    parser.add_argument(
+        '--cluster-index',
+        dest='cluster_index',
+        default='.kibana',
+        help='elasticsearch kibana index name',
+        type=str
+    )
+    parser.add_argument(
+        '--s3-bucket',
+        dest='s3_bucket',
+        default='dashboard',
+        help='S3 bucket name',
+        type=str
+    )
+    parser.add_argument(
+        '--s3-host',
+        dest='s3_host',
+        default='dashboard',
+        help='S3 host name',
+        type=str
+    )
+    parser.add_argument(
+        '--s3-schema',
+        dest='s3_schema',
+        default='http',
+        choices=['http', 'https'],
+        help='S3 schema',
+        type=str
+    )
+
+    args = parser.parse_args()
+
+    # Create some dictionaries that are needed
+    cluster = dict(
+        ip_address=args.cluster_ip,
+        port=args.cluster_port,
+        index=args.cluster_index
+    )
+
+    s3_details = dict(
+        bucket=args.s3_bucket,
+        host=args.s3_host,
+        schema=args.s3_schema
+    )
+
+    # If the user wants to save the dashboard
+    if args.action == 'save':
+        save_all_types(
+            cluster=cluster,
+            output_directory=args.directory
+        )
+        # If the dashboard should be saved to s3
+        if args.s3:
+            push_to_s3(
+                input_directory=args.directory,
+                s3_details=s3_details
+            )
+    # If the user wants to load the dashboard
+    elif args.action == 'load':
+        # If the dashboard should be loaded from s3
+        if args.s3:
+            pull_from_s3(
+                output_directory=args.directory,
+                s3_details=s3_details
+            )
+        push_all_from_disk(
+            cluster=cluster,
+            input_directory=args.directory
+        )
