@@ -25,12 +25,6 @@ LOGGING = {
             'level': 'INFO',
             'class': 'logging.StreamHandler'
         },
-        'syslog': {
-            'formatter': 'default',
-            'level': 'INFO',
-            'class': 'logging.handlers.SysLogHandler',
-            'address': '/dev/log'
-        }
     },
     'loggers': {
         '': {
