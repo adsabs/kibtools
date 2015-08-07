@@ -1,5 +1,6 @@
 [![Build Status](https://travis-ci.org/adsabs/kibtools.svg?branch=master)](https://travis-ci.org/adsabs/kibtools)
 [![Coverage Status](https://coveralls.io/repos/adsabs/kibtools/badge.svg?branch=master&service=github)](https://coveralls.io/github/adsabs/kibtools?branch=master)
+[![Code Climate](https://codeclimate.com/github/adsabs/kibtools/badges/gpa.svg)](https://codeclimate.com/github/adsabs/kibtools)
 # Kib[ana]tools
 A small tool to extract dashboards, visualizations, and searches from kibana,
 that are stored in the elasticsearch index.
