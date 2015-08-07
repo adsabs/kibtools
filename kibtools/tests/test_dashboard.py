@@ -98,7 +98,7 @@ class MockElasticsearchStream(object):
                 index='.kibana',
             )
             output_path = '{0}/'.format(os.getcwd())
-            helper_make_all(cluster=cluster, output_path=output_path)
+            helper_make_all(output_path=output_path)
             tmp_file = open('/tmp/tmp.tar.gz', 'rb')
             lines = tmp_file.read()
             tmp_file.close()
@@ -380,10 +380,9 @@ class TestDashboard(unittest.TestCase):
                 gb = glob.glob('{0}{1}/*'.format(output_path, sub_type))
                 self.assertTrue(
                     len(gb) > 0
-            )
+                )
         except Exception as error:
             self.fail(error)
         finally:
-            pass
             os.remove('/tmp/tmp.tar.gz')
             shutil.rmtree('{0}'.format(output_path))
