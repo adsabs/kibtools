@@ -26,6 +26,7 @@ http://docs.aws.amazon.com/AmazonS3/latest/dev/using-iam-policies.html
 import os
 import glob
 import json
+import boto3
 import config
 import tarfile
 import logging
@@ -235,24 +236,18 @@ def push_to_s3(input_directory, s3_details):
     :param input_directory: input directory
     :param s3_details: details about AWS S3
     """
-    tar_file = '{0}/dashboard.tar.gz'.format(input_directory)
+    tar_file = '/tmp/dashboard.tar.gz'.format(input_directory)
+    folders = glob.glob('{0}/*'.format(input_directory))
     with tarfile.open(tar_file, 'w:gz') as out_tar:
-        out_tar.add(input_directory)
+        for folder in folders:
+            out_tar.add(folder, arcname=folder.split('/')[-1])
     logger.info('Made a gzipped tarbarball: {0}'.format(tar_file))
 
-    url = '{schema}://{bucket}.{host}/{objects}'.format(
-        schema=s3_details['schema'],
-        bucket=s3_details['bucket'],
-        host=s3_details['host'],
-        objects='dashboard.tar.gz'
-    )
+    s3_client = boto3.client('s3')
+    s3_client.upload_file(tar_file, s3_details['bucket'], 'dashboard.tar.gz')
 
-    logger.info('Pushing to S3 storage: {0}'.format(url))
-    files = {'file': open(tar_file, 'rb')}
-    response = requests.put(url, files=files)
-
-    logger.info('S3 response: {0}'.format(response))
-    return response
+    logger.info('Pushing to S3 storage: {0}'.format(s3_details['bucket']))
+    os.remove('/tmp/dashboard.tar.gz')
 
 def pull_from_s3(output_directory, s3_details):
     """
@@ -262,25 +257,9 @@ def pull_from_s3(output_directory, s3_details):
     :param s3_details: details about AWS S3
     """
 
-    url = '{schema}://{bucket}.{host}/{objects}'.format(
-        schema=s3_details['schema'],
-        bucket=s3_details['bucket'],
-        host=s3_details['host'],
-        objects='dashboard.tar.gz'
-    )
-    logger.info('Pulling file from S3 storage: {0}'.format(url))
-
-    # Download the file in chunk sizes of 1024
-    # see http://stackoverflow.com/questions/
-    # 13137817/how-to-download-image-using-requests
-    response = requests.get(url, stream=True)
-
-    chunk_size = 1024
-    if response.status_code == 200:
-        with open('/tmp/dashboard.tar.gz', 'wb') as f:
-            for chunk in response.iter_content(chunk_size):
-                logger.info('Writing chunk of size: {0}'.format(chunk_size))
-                f.write(chunk)
+    logger.info('Pulling file from S3 storage: {0}'.format(s3_details['bucket']))
+    s3_client = boto3.client('s3')
+    s3_client.download_file(s3_details['bucket'], 'dashboard.tar.gz', '/tmp/dashboard.tar.gz')
 
     logger.info('Opening tar file to: {0}'.format(output_directory))
     tar_file = tarfile.open('/tmp/dashboard.tar.gz', 'r')
