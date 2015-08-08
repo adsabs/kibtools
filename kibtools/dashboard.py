@@ -326,6 +326,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '-s',
         '--s3',
+        default=False,
         dest='s3',
         action='store_true',
         help='save/load the dashboard to/from AWS S3'
@@ -333,7 +334,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--cluster-ip',
         dest='cluster_ip',
-        default='elasticsearch',
+        default='localhost',
         help='IP or DNS name of cluster',
         type=str
     )
@@ -358,21 +359,6 @@ if __name__ == '__main__':
         help='S3 bucket name',
         type=str
     )
-    parser.add_argument(
-        '--s3-host',
-        dest='s3_host',
-        default='kibana-dash',
-        help='S3 host name',
-        type=str
-    )
-    parser.add_argument(
-        '--s3-schema',
-        dest='s3_schema',
-        default='http',
-        choices=['http', 'https'],
-        help='S3 schema',
-        type=str
-    )
 
     args = parser.parse_args()
 
@@ -385,8 +371,6 @@ if __name__ == '__main__':
 
     s3_details = dict(
         bucket=args.s3_bucket,
-        host=args.s3_host,
-        schema=args.s3_schema
     )
 
     # If the user wants to save the dashboard
