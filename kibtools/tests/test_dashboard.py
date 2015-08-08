@@ -12,11 +12,13 @@ sys.path.append(PROJECT_HOME)
 import re
 import json
 import glob
+import boto3
 import shutil
 import tarfile
 import unittest
 import dashboard
 
+from moto import mock_s3
 from stub_data import stub_data
 from httpretty import HTTPretty
 
@@ -128,11 +130,10 @@ class MockElasticsearchStream(object):
         HTTPretty.reset()
         HTTPretty.disable()
 
-def helper_make_all(output_path):
+def helper_make_all():
     """
     This makes the relevant stub files needed for the gzip, except this does
     not require any web interaction
-    :param output_path: output path
     """
     os.mkdir('/tmp/test_out/')
 
@@ -144,12 +145,12 @@ def helper_make_all(output_path):
         with open('{0}/temp.json'.format(sub_path), 'w') as f_tmp:
             f_tmp.write('{"msg": "sucess"}')
 
-    tar_file = '/tmp/tmp.tar.gz'.format(output_path)
+    tar_file = '/tmp/tmp.tar.gz'
     with tarfile.open(tar_file, 'w:gz') as out_tar:
 
-        out_tar.add('/tmp/test_out/search'.format(output_path), arcname='search')
-        out_tar.add('/tmp/test_out/visualization'.format(output_path), arcname='visualization')
-        out_tar.add('/tmp/test_out/dashboard'.format(output_path), arcname='dashboard')
+        out_tar.add('/tmp/test_out/search', arcname='search')
+        out_tar.add('/tmp/test_out/visualization', arcname='visualization')
+        out_tar.add('/tmp/test_out/dashboard', arcname='dashboard')
 
     shutil.rmtree('/tmp/test_out/')
 
@@ -330,59 +331,68 @@ class TestDashboard(unittest.TestCase):
         Tests that a gzip is made and sent to S3 and everything cleaned after
         """
         # First create some dummy content to work with
+
         output_path = '{0}/test_out/'.format(os.getcwd())
         helper_extract_all(cluster=self.cluster, output_path=output_path)
 
-        # Run the gzip and send
-        try:
-            stub_response = dict(
-                status_code=200,
-                response={'msg': 'success'}
+        with mock_s3():
+            s3_resource = boto3.resource('s3')
+            s3_resource.create_bucket(Bucket=self.s3_details['bucket'])
+
+            # Run the gzip and send
+            dashboard.push_to_s3(
+                input_directory=output_path,
+                s3_details=self.s3_details
             )
-            with MockElasticsearch(stub_response):
-                response = dashboard.push_to_s3(
-                    input_directory=output_path,
-                    s3_details=self.s3_details
-                )
 
-            # Check response from S3
-            self.assertEqual(response.status_code, 200)
+            # Check there is a gzip in the bucket
+            s3_object = s3_resource.Object(
+                self.s3_details['bucket'],
+                'dashboard.tar.gz'
+            )
 
-            # Check there is a gzip on disk
-            gb = glob.glob('{0}/*.gz'.format(output_path))
+            keys = s3_object.get().keys()
             self.assertTrue(
-                len(gb) == 1
+                len(keys) > 0
             )
 
-        except Exception as error:
-            self.fail(error)
-        finally:
             # Clean up files
             shutil.rmtree(output_path)
 
+    @mock_s3
     def test_pull_gzip_from_s3(self):
         """
         Tests that a gzip is pulled from S3 and unpacked
         """
+
+        helper_make_all()
+
+        s3_resource = boto3.resource('s3')
+        s3_resource.create_bucket(Bucket=self.s3_details['bucket'])
+
+        with open('/tmp/tmp.tar.gz', 'rb') as f:
+            binary = f.read()
+
+        s3_resource.Bucket(self.s3_details['bucket']).put_object(
+            Key='dashboard.tar.gz',
+            Body=binary
+        )
+
         output_path = '{0}/test_out/'.format(os.getcwd())
 
-        try:
-            with MockElasticsearchStream():
-                dashboard.pull_from_s3(
-                    output_directory=output_path,
-                    s3_details=self.s3_details
-                )
+        dashboard.pull_from_s3(
+            output_directory=output_path,
+            s3_details=self.s3_details
+        )
 
-            for sub_type in ['search', 'visualization', 'dashboard']:
-                self.assertTrue(
-                    os.path.isdir('{0}{1}'.format(output_path, sub_type))
-                )
-                gb = glob.glob('{0}{1}/*'.format(output_path, sub_type))
-                self.assertTrue(
-                    len(gb) > 0
-                )
-        except Exception as error:
-            self.fail(error)
-        finally:
-            os.remove('/tmp/tmp.tar.gz')
-            shutil.rmtree('{0}'.format(output_path))
+        for sub_type in ['search', 'visualization', 'dashboard']:
+            self.assertTrue(
+                os.path.isdir('{0}{1}'.format(output_path, sub_type))
+            )
+            gb = glob.glob('{0}{1}/*'.format(output_path, sub_type))
+            self.assertTrue(
+                len(gb) > 0
+            )
+
+        os.remove('/tmp/tmp.tar.gz')
+        shutil.rmtree('{0}'.format(output_path))

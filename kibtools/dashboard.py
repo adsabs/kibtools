@@ -229,6 +229,26 @@ def push_all_from_disk(cluster, input_directory):
             logger.info('....... file object: {0}'.format(push_name))
             logger.info('Response from ES: {0}'.format(response))
 
+def s3_upload_file(input_file, s3_bucket, s3_object):
+    """
+    Upload file to S3 storage. Similar to the s3.upload_file, however, that
+    does not work nicely with moto, whereas this function does.
+
+    :param input_file: file to upload
+    :param s3_bucket: bucket to upload to
+    :param s3_object: name of the object in the bucket
+    """
+
+    s3_resource = boto3.resource('s3')
+
+    with open(input_file, 'rb') as f:
+        binary = f.read()
+
+    s3_resource.Bucket(s3_bucket).put_object(
+        Key=s3_object,
+        Body=binary
+    )
+
 def push_to_s3(input_directory, s3_details):
     """
     Push the files on disk to S3 storage
@@ -236,18 +256,33 @@ def push_to_s3(input_directory, s3_details):
     :param input_directory: input directory
     :param s3_details: details about AWS S3
     """
-    tar_file = '/tmp/dashboard.tar.gz'.format(input_directory)
+    tar_file = '/tmp/dashboard.tar.gz'
     folders = glob.glob('{0}/*'.format(input_directory))
     with tarfile.open(tar_file, 'w:gz') as out_tar:
         for folder in folders:
             out_tar.add(folder, arcname=folder.split('/')[-1])
     logger.info('Made a gzipped tarbarball: {0}'.format(tar_file))
 
-    s3_client = boto3.client('s3')
-    s3_client.upload_file(tar_file, s3_details['bucket'], 'dashboard.tar.gz')
+    s3_upload_file(tar_file, s3_details['bucket'], 'dashboard.tar.gz')
 
     logger.info('Pushing to S3 storage: {0}'.format(s3_details['bucket']))
     os.remove('/tmp/dashboard.tar.gz')
+
+def s3_download_file(s3_bucket, s3_object, output_file):
+    """
+    Download file from S3 bucket. Similar to s3.download_file except that does
+    not play nicely with moto, this however, does.
+
+    :param s3_bucket: bucket to download from
+    :param s3_object: object to download
+    :param output_file: file to download to
+    """
+
+    s3_resource = boto3.resource('s3')
+    body = s3_resource.Object(s3_bucket, s3_object).get()['Body']
+    with open(output_file, 'wb') as f:
+        for chunk in iter(lambda: body.read(1024), b''):
+            f.write(chunk)
 
 def pull_from_s3(output_directory, s3_details):
     """
@@ -258,8 +293,7 @@ def pull_from_s3(output_directory, s3_details):
     """
 
     logger.info('Pulling file from S3 storage: {0}'.format(s3_details['bucket']))
-    s3_client = boto3.client('s3')
-    s3_client.download_file(s3_details['bucket'], 'dashboard.tar.gz', '/tmp/dashboard.tar.gz')
+    s3_download_file(s3_details['bucket'], 'dashboard.tar.gz', '/tmp/dashboard.tar.gz')
 
     logger.info('Opening tar file to: {0}'.format(output_directory))
     tar_file = tarfile.open('/tmp/dashboard.tar.gz', 'r')
