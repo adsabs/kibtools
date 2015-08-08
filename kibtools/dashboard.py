@@ -183,7 +183,7 @@ def push_object(cluster, push_type, push_name, push_source):
         type=push_type,
         name=push_name
     )
-    response = requests.post(url, data=push_source)
+    response = requests.post(url, data=json.dumps(push_source))
     return response
 
 def push_all_from_disk(cluster, input_directory):
@@ -354,14 +354,14 @@ if __name__ == '__main__':
     parser.add_argument(
         '--s3-bucket',
         dest='s3_bucket',
-        default='dashboard',
+        default='kibana-dash',
         help='S3 bucket name',
         type=str
     )
     parser.add_argument(
         '--s3-host',
         dest='s3_host',
-        default='dashboard',
+        default='kibana-dash',
         help='S3 host name',
         type=str
     )
