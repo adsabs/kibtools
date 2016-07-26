@@ -89,7 +89,7 @@ def get_visualizations(cluster):
     visualizations = [
         dict(name=viz['_id'],
              source=viz['_source'],
-             searches=viz['_source']['savedSearchId']
+             searches=viz['_source'].get('savedSearchId', '')
              ) for viz in visualizations
         ]
 
